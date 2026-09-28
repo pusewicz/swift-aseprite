@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Swift (swiftly, version from .swift-version)
+        run: |
+          curl -fsSL https://download.swift.org/swiftly/darwin/swiftly.pkg -o swiftly.pkg
+          installer -pkg swiftly.pkg -target CurrentUserHomeDirectory
+          ~/.swiftly/bin/swiftly init --assume-yes --skip-install --quiet-shell-followup
+          echo "$HOME/.swiftly/bin" >> "$GITHUB_PATH"
+          ~/.swiftly/bin/swiftly install --assume-yes
+      - run: swift --version
+      - run: swift build -c release
+      - run: swift test
+      - name: Test under AddressSanitizer
+        run: swift test --sanitize=address
+
+  linux:
+    runs-on: ubuntu-24.04
+    container: swift:6.4.0-noble
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift --version
+      - name: Lint
+        run: swift format lint --strict --recursive Sources Tests Package.swift
+      - run: swift build -c release
+      - run: swift test
+      - name: Build for WebAssembly
+        run: |
+          swift sdk install https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz --checksum "$WASM_SDK_CHECKSUM"
+          swift build --swift-sdk swift-6.4.0-RELEASE_wasm --target Aseprite
+        env:
+          WASM_SDK_CHECKSUM: f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+      - uses: compnerd/gha-setup-swift@v0.5.0
+        with:
+          swift-version: swift-6.4.0-release
+          swift-build: 6.4.0-RELEASE
+      - run: swift --version
+      - run: swift build -c release
+      - run: swift test

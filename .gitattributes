@@ -1,0 +1,6 @@
+# Test fixtures and goldens are byte-exact data; never convert line endings.
+*.ase binary
+*.aseprite binary
+*.rgba binary
+*.zz binary
+*.bin binary
